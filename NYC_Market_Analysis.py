@@ -52,6 +52,10 @@ def load_data():
 # Load data once at startup
 df, neighborhood_coords = load_data()
 
+# Initialize neighborhoods and room types
+neighborhoods = sorted([n for n in df['neighbourhood'].unique() if pd.notna(n)])
+room_types = sorted([rt for rt in df['room_type'].unique() if pd.notna(rt)])
+
 # Main page content
 st.title("NYC Airbnb Market Analytics Dashboard")
 st.markdown("""
@@ -59,109 +63,121 @@ st.markdown("""
     market analysis and predictive insights for Airbnb properties across New York City.
 """)
 
-# Create a container for the filters
-st.sidebar.header("Search Filters 🔍")
+# Initialize global state variables if not exists
+if 'selected_neighborhoods' not in st.session_state:
+    st.session_state.selected_neighborhoods = neighborhoods[:3] if len(neighborhoods) >= 3 else neighborhoods
 
-# Add neighborhood selection
-neighborhoods = sorted([n for n in df['neighbourhood'].unique() if pd.notna(n)])
-selected_neighborhoods = st.sidebar.multiselect(
-    "Select Neighborhoods",
+if 'selected_room_types' not in st.session_state:
+    st.session_state.selected_room_types = room_types[:3] if len(room_types) >= 3 else room_types
+
+if 'price_range' not in st.session_state:
+    st.session_state.price_range = (float(df['price'].min()), float(df['price'].quantile(0.75)))
+
+if 'min_rating' not in st.session_state:
+    st.session_state.min_rating = 4.0
+
+if 'min_reviews' not in st.session_state:
+    st.session_state.min_reviews = 5
+
+if 'min_nights' not in st.session_state:
+    st.session_state.min_nights = 7
+
+if 'superhost_only' not in st.session_state:
+    st.session_state.superhost_only = False
+
+if 'instant_book' not in st.session_state:
+    st.session_state.instant_book = False
+
+if 'sort_by' not in st.session_state:
+    st.session_state.sort_by = "Price (Low to High)"
+
+# Create a container for quick filters
+st.sidebar.header("Quick Overview Filters 🔍")
+
+# Add neighborhood selection for overview
+st.session_state.selected_neighborhoods = st.sidebar.multiselect(
+    "Select Neighborhoods to View",
     options=neighborhoods,
-    default=neighborhoods[:5] if len(neighborhoods) >= 5 else neighborhoods
+    default=st.session_state.selected_neighborhoods
 )
 
-# Add room type selection
-room_types = sorted([rt for rt in df['room_type'].unique() if pd.notna(rt)])
-selected_room_types = st.sidebar.multiselect(
-    "Select Room Types",
+# Add room type selection for overview
+st.session_state.selected_room_types = st.sidebar.multiselect(
+    "Select Room Types to View",
     options=room_types,
-    default=room_types
+    default=st.session_state.selected_room_types
 )
 
-# Add price range filter
-price_range = st.sidebar.slider(
-    "Price Range ($)",
+# Add price range overview
+st.session_state.price_range = st.sidebar.slider(
+    "Price Range Overview ($)",
     min_value=float(df['price'].min()),
     max_value=float(df['price'].max()),
-    value=(float(df['price'].min()), float(df['price'].quantile(0.75))),
+    value=st.session_state.price_range,
     step=50.0
 )
 
-# Add availability filter
-min_availability = st.sidebar.slider(
-    "Minimum Availability (days/year)",
-    min_value=0,
-    max_value=365,
-    value=30,
-    step=1
-)
-
-# Add rating filter
-min_rating = st.sidebar.slider(
+# Add additional filters
+st.session_state.min_rating = st.sidebar.slider(
     "Minimum Rating",
     min_value=0.0,
     max_value=5.0,
-    value=4.0,
+    value=st.session_state.min_rating,
     step=0.5
 )
 
-# Add review count filter
-min_reviews = st.sidebar.slider(
+st.session_state.min_reviews = st.sidebar.slider(
     "Minimum Number of Reviews",
     min_value=0,
     max_value=int(df['number_of_reviews'].max()),
-    value=5,
+    value=st.session_state.min_reviews,
     step=5
 )
 
-# Add superhost filter
-superhost_only = st.sidebar.checkbox("Show Superhost Properties Only")
-
-# Add instant booking filter
-instant_book = st.sidebar.checkbox("Show Instant Book Properties Only")
-
-# Add minimum nights filter
-min_nights = st.sidebar.slider(
-    "Maximum Minimum Nights Required",
+st.session_state.min_nights = st.sidebar.slider(
+    "Maximum Minimum Nights",
     min_value=1,
     max_value=int(df['minimum_nights'].max()),
-    value=7,
+    value=st.session_state.min_nights,
     step=1
 )
 
+st.session_state.superhost_only = st.sidebar.checkbox("Show Superhost Properties Only", value=st.session_state.superhost_only)
+st.session_state.instant_book = st.sidebar.checkbox("Show Instant Book Properties Only", value=st.session_state.instant_book)
+
 # Add sorting options
-sort_by = st.sidebar.selectbox(
-    "Sort Properties By",
-    ["Most Popular", "Price (Low to High)", "Price (High to Low)", "Availability"]
+st.session_state.sort_by = st.sidebar.selectbox(
+    "Sort by",
+    ["Price (Low to High)", "Price (High to Low)", "Availability", "Most Popular"],
+    index=["Price (Low to High)", "Price (High to Low)", "Availability", "Most Popular"].index(st.session_state.sort_by)
 )
 
 # Add warning if no selections made
-if not selected_neighborhoods or not selected_room_types:
+if not st.session_state.selected_neighborhoods or not st.session_state.selected_room_types:
     st.warning("Please select at least one neighborhood and room type from the sidebar to view available properties.")
     filtered_data = pd.DataFrame()
 else:
     filtered_data = df[
-        (df["neighbourhood"].isin(selected_neighborhoods)) &
-        (df["room_type"].isin(selected_room_types)) &
-        (df["price"].between(price_range[0], price_range[1])) &
-        (df["availability_365"] >= min_availability) &
-        (df["review_rate_number"] >= min_rating) &
-        (df["number_of_reviews"] >= min_reviews) &
-        (df["minimum_nights"] <= min_nights)
+        (df["neighbourhood"].isin(st.session_state.selected_neighborhoods)) &
+        (df["room_type"].isin(st.session_state.selected_room_types)) &
+        (df["price"].between(st.session_state.price_range[0], st.session_state.price_range[1])) &
+        (df["review_rate_number"] >= st.session_state.min_rating) &
+        (df["number_of_reviews"] >= st.session_state.min_reviews) &
+        (df["minimum_nights"] <= st.session_state.min_nights)
     ]
     
-    if superhost_only:
+    if st.session_state.superhost_only:
         filtered_data = filtered_data[filtered_data["host_identity_verified"] == "verified"]
     
-    if instant_book:
+    if st.session_state.instant_book:
         filtered_data = filtered_data[filtered_data["instant_bookable"] == "TRUE"]
     
     # Sort the data based on user selection
-    if sort_by == "Price (Low to High)":
+    if st.session_state.sort_by == "Price (Low to High)":
         filtered_data = filtered_data.sort_values("price")
-    elif sort_by == "Price (High to Low)":
+    elif st.session_state.sort_by == "Price (High to Low)":
         filtered_data = filtered_data.sort_values("price", ascending=False)
-    elif sort_by == "Availability":
+    elif st.session_state.sort_by == "Availability":
         filtered_data = filtered_data.sort_values("availability_365", ascending=False)
     else:  # Most Popular
         filtered_data = filtered_data.sort_values("number_of_reviews", ascending=False)
@@ -186,7 +202,7 @@ else:
         # Neighborhood Map
         st.subheader("📍 Neighborhood Map")
         st.caption("Click on markers to see property details. Larger circles indicate more available properties.")
-        st.caption(f"Selected Neighborhoods: {', '.join(selected_neighborhoods)}")
+        st.caption(f"Selected Neighborhoods: {', '.join(st.session_state.selected_neighborhoods)}")
         
         avg_prices = filtered_data.groupby('neighbourhood').agg({
             'price': ['mean', 'count'],
@@ -221,7 +237,7 @@ else:
             center={"lat": 40.7128, "lon": -74.0060}
         )
 
-        for neighborhood in selected_neighborhoods:
+        for neighborhood in st.session_state.selected_neighborhoods:
             possible_names = [neighborhood, neighborhood.title(), neighborhood.lower(), neighborhood.upper()]
             for name in possible_names:
                 if name in neighborhood_coords:
@@ -319,7 +335,7 @@ else:
 
         # Property Listings Section
         st.header("🏠 Available Properties")
-        st.caption(f"Showing {len(filtered_data)} properties sorted by {sort_by}")
+        st.caption(f"Showing {len(filtered_data)} properties sorted by {st.session_state.sort_by}")
 
         # Initialize session state for property display count if not exists
         if 'property_display_count' not in st.session_state:

@@ -4,10 +4,10 @@ import openai
 import os
 
 # Set your OpenAI API key (or set it as an environment variable)
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+OPENAI_API_KEY = "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"
 
 # Configure OpenAI
-openai.api_key = OPENAI_API_KEY
+openai.api_key = "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"
 
 @st.cache_data
 def load_data():
@@ -17,6 +17,23 @@ def load_data():
         # Clean price column - handle string values with $ and commas
         df['price'] = df['price'].str.replace('$', '').str.replace(',', '').astype(float)
         df = df.dropna(subset=['price'])  # Remove rows with missing prices
+        
+        # Ensure required columns exist and handle column name variations
+        column_mapping = {
+            'availability_365': ['availability_365', 'availability', 'days_available'],
+            'number_of_reviews': ['number_of_reviews', 'review_count', 'reviews'],
+            'review_rate_number': ['review_rate_number', 'rating', 'review_rating']
+        }
+        
+        # Map column variations to standard names
+        for std_col, variations in column_mapping.items():
+            if std_col not in df.columns:
+                for var in variations:
+                    if var in df.columns:
+                        df[std_col] = df[var]
+                        break
+                if std_col not in df.columns:
+                    df[std_col] = 0  # Default value if column not found
         
         # Remove outliers by filtering listings above the 95th percentile of price
         df = df[df["price"] < df["price"].quantile(0.95)]
@@ -42,7 +59,7 @@ def get_openai_response(conversation_history):
     """Call the OpenAI API to get a chatbot response."""
     try:
         response = openai.ChatCompletion.create(
-            model="gpt-4",
+            model="gpt-4o-mini",
             messages=conversation_history,
             max_tokens=500,
             temperature=0.7,
@@ -87,7 +104,9 @@ if user_input and not user_input.isspace():
     # Get AI response
     bot_response = get_openai_response(st.session_state.chat_history)
     st.session_state.chat_history.append({"role": "assistant", "content": bot_response})
-    st.experimental_rerun()  # Refresh the page to update the chat history
+    
+    # Rerun the app to update the chat history
+    st.rerun()
 
 # Display the conversation history
 for msg in st.session_state.chat_history:
