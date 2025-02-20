@@ -48,20 +48,30 @@ def process_user_input(user_input):
         'instant_book': None
     }
     
-    # Extract preferences from user input with improved pattern matching
-    if 'budget' in input_lower or '$' in input_lower or 'price' in input_lower:
+    # Extract budget preferences with enhanced pattern matching
+    if 'budget' in input_lower or '$' in input_lower or 'price' in input_lower or 'under' in input_lower:
         try:
-            # Extract number after $ or before 'dollars' or 'per night'
             import re
-            numbers = re.findall(r'\$?(\d+(?:\.\d+)?)', input_lower)
-            if numbers:
-                st.session_state.preferences['budget'] = float(numbers[0])
+            # Look for patterns like "$X", "under $X", "less than $X"
+            if 'under' in input_lower or 'less than' in input_lower:
+                numbers = re.findall(r'\$?(\d+(?:\.\d+)?)', input_lower)
+                if numbers:
+                    st.session_state.preferences['budget'] = float(numbers[0])
+            else:
+                numbers = re.findall(r'\$?(\d+(?:\.\d+)?)', input_lower)
+                if numbers:
+                    st.session_state.preferences['budget'] = float(numbers[0])
         except:
             pass
     
-    if 'neighborhood' in input_lower or 'area' in input_lower or 'location' in input_lower:
+    # Enhanced neighborhood matching
+    if any(word in input_lower for word in ['neighborhood', 'area', 'location', 'in']):
         for neighborhood in df['neighbourhood'].unique():
-            if str(neighborhood).lower() in input_lower:
+            neighborhood_str = str(neighborhood).lower()
+            # Check for exact neighborhood name or partial matches
+            if (neighborhood_str in input_lower or 
+                input_lower.find(f"in {neighborhood_str}") != -1 or 
+                input_lower.find(f"near {neighborhood_str}") != -1):
                 st.session_state.preferences['neighborhood'] = neighborhood
                 break
     
